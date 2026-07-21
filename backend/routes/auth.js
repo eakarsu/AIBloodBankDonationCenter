@@ -4,11 +4,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'bloodbank-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // POST /login
 router.post('/login', async (req, res, next) => {
   try {
+    if (!JWT_SECRET) return res.status(500).json({ error: 'Authentication is not configured' });
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -27,7 +28,7 @@ router.post('/login', async (req, res, next) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: user.role, tenantId: user.tenant_id },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -49,7 +50,8 @@ router.post('/login', async (req, res, next) => {
 // POST /register
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    if (!JWT_SECRET) return res.status(500).json({ error: 'Authentication is not configured' });
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
@@ -64,13 +66,15 @@ router.post('/register', async (req, res, next) => {
     const password_hash = await bcrypt.hash(password, salt);
 
     const result = await pool.query(
-      'INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role',
-      [name, email, password_hash, role || 'staff']
+      "INSERT INTO users (name, email, password_hash, role, tenant_id) VALUES ($1, $2, $3, 'staff', 'pending') RETURNING id, name, email, role, tenant_id",
+      [name, email, password_hash]
     );
 
     const user = result.rows[0];
+    user.tenant_id = `user:${user.id}`;
+    await pool.query('UPDATE users SET tenant_id=$1 WHERE id=$2', [user.tenant_id, user.id]);
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: user.role, tenantId: user.tenant_id },
       JWT_SECRET,
       { expiresIn: '24h' }
     );

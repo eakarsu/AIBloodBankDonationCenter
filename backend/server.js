@@ -6,10 +6,16 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || 3001;
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) throw new Error('JWT_SECRET must contain at least 32 characters');
 
 // Middleware
-app.use(cors());
+const origins = (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',').map((value) => value.trim()).filter(Boolean);
+app.use(cors({ origin: (origin, callback) => !origin || origins.includes(origin) ? callback(null, true) : callback(new Error('Origin is not allowed')), credentials: true }));
 app.use(express.json());
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -31,6 +37,7 @@ const rewardRoutes = require('./routes/rewards');
 const aiRoutes = require('./routes/ai');
 
 app.use('/api/auth', authRoutes);
+app.use('/api', require('./middleware/auth'));
 app.use('/api/donors', donorRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/screening', screeningRoutes);
@@ -47,11 +54,7 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/drives', driveRoutes);
 app.use('/api/rewards', rewardRoutes);
 app.use('/api/ai', aiRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+app.use('/api/allocation-workflows', require('./routes/allocationWorkflows'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -36,7 +36,7 @@ async function seed() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
         role VARCHAR(50) DEFAULT 'admin',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -298,7 +298,7 @@ async function seed() {
     console.log('Seeding users...');
     const hashedPassword = await bcrypt.hash('admin123', 10);
     await client.query(`
-      INSERT INTO users (email, password, name, role) VALUES
+      INSERT INTO users (email, password_hash, name, role) VALUES
         ('admin@bloodbank.com', $1, 'System Administrator', 'admin')
     `, [hashedPassword]);
     console.log('Users seeded.');
