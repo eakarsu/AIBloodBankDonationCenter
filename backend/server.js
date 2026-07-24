@@ -35,6 +35,7 @@ const staffRoutes = require('./routes/staff');
 const driveRoutes = require('./routes/drives');
 const rewardRoutes = require('./routes/rewards');
 const aiRoutes = require('./routes/ai');
+const runtimeAiRoutes = require('./routes/runtimeAi');
 
 app.use('/api/auth', authRoutes);
 app.use('/api', require('./middleware/auth'));
@@ -54,6 +55,7 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/drives', driveRoutes);
 app.use('/api/rewards', rewardRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/runtime-ai', runtimeAiRoutes);
 app.use('/api/allocation-workflows', require('./routes/allocationWorkflows'));
 
 // Error handling middleware
