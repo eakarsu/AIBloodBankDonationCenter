@@ -26,8 +26,8 @@ function Login() {
   };
 
   const handleQuickLogin = async () => {
-    setEmail('admin@bloodbank.com');
-    setPassword('admin123');
+    setEmail(import.meta.env.VITE_DEMO_EMAIL || '');
+    setPassword(import.meta.env.VITE_DEMO_PASSWORD || '');
     setError('');
     setLoading(true);
     try {
