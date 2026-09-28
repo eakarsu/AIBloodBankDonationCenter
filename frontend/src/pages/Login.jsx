@@ -26,18 +26,15 @@ function Login() {
   };
 
   const handleQuickLogin = async () => {
-    setEmail(import.meta.env.VITE_DEMO_EMAIL || '');
-    setPassword(import.meta.env.VITE_DEMO_PASSWORD || '');
     setError('');
-    setLoading(true);
     try {
-      const res = await login('admin@bloodbank.com', 'admin123');
-      localStorage.setItem('token', res.data.token);
-      navigate('/dashboard');
+      const response = await fetch('/api/auth/demo-credentials', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Demo credentials are unavailable');
+      const credentials = await response.json();
+      setEmail(credentials.email || '');
+      setPassword(credentials.password || '');
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed. Please try again.');
-    } finally {
-      setLoading(false);
+      setError(err.message || 'Demo credentials are unavailable');
     }
   };
 
@@ -76,7 +73,7 @@ function Login() {
           </button>
         </form>
         <button className="btn btn-quick" onClick={handleQuickLogin} disabled={loading}>
-          Quick Login (Demo)
+          Auto Fill Demo Credentials
         </button>
       </div>
     </div>

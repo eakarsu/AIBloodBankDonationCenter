@@ -65,7 +65,10 @@ for port in "$backend_port" "$frontend_port"; do
 done
 if [ "$backend_port" = "$frontend_port" ]; then echo "BACKEND_PORT and FRONTEND_PORT must differ." >&2; exit 1; fi
 for port in "$backend_port" "$frontend_port"; do if command -v lsof >/dev/null && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then echo "Port $port is already in use; refusing to stop another process." >&2; exit 1; fi; done
-if [ "${MIGRATE_ON_START:-false}" = true ]; then scripts/migrate.sh; fi
+if [ "${MIGRATE_ON_START:-false}" = true ]; then
+  scripts/migrate.sh
+  node backend/create-admin.js
+fi
 (cd backend && npm start) & backend_pid=$!
 (cd frontend && BACKEND_PORT="$backend_port" npm start -- --host 127.0.0.1 --port "$frontend_port" --strictPort) & frontend_pid=$!
 cleanup(){ kill "$backend_pid" "$frontend_pid" 2>/dev/null || true; }
