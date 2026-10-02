@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
+import Sidebar from './components/Sidebar';
 import './App.css';
 
 import Login from './pages/Login';
@@ -75,8 +76,8 @@ function Navbar() {
 
 function App() {
   return (
-    <div className="app">
-      <Navbar />
+    <div className="app-shell">
+      <Sidebar user={user} onLogout={handleLogout} />
       <main className="main-content">
         <Routes>
           <Route path="/" element={<Login />} />
