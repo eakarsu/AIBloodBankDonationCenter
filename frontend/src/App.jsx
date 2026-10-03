@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import './App.css';
+import AppSidebar from './components/AppSidebar';
 
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -74,8 +75,11 @@ function Navbar() {
 }
 
 function App() {
+  const location = useLocation();
+  const showSidebar = location.pathname !== '/' && Boolean(localStorage.getItem('token'));
   return (
-    <div className="app">
+    <div className={showSidebar ? 'app codex-nav-shell' : 'app'}>
+      {showSidebar && <AppSidebar />}
       <Navbar />
       <main className="main-content">
         <Routes>
