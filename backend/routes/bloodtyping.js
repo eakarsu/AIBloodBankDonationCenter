@@ -4,14 +4,14 @@ const pool = require('../db');
 
 router.get('/', async (req, res, next) => {
   try {
-    const result = await pool.query('SELECT * FROM blood_typing ORDER BY tested_at DESC');
+    const result = await pool.query('SELECT bt.*, c.donation_id, bt.rh_type AS rh_factor, bt.hepatitis_b AS hbv_test, bt.hepatitis_c AS hcv_test, bt.test_date AS testing_date FROM blood_tests bt LEFT JOIN collections c ON c.id = bt.collection_id ORDER BY bt.test_date DESC NULLS LAST, bt.id DESC');
     res.json(result.rows);
   } catch (err) { next(err); }
 });
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const result = await pool.query('SELECT * FROM blood_typing WHERE id = $1', [req.params.id]);
+    const result = await pool.query('SELECT bt.*, c.donation_id, bt.rh_type AS rh_factor, bt.hepatitis_b AS hbv_test, bt.hepatitis_c AS hcv_test, bt.test_date AS testing_date FROM blood_tests bt LEFT JOIN collections c ON c.id = bt.collection_id WHERE bt.id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Blood typing record not found' });
     res.json(result.rows[0]);
   } catch (err) { next(err); }

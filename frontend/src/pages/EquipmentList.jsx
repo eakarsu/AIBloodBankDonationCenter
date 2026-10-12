@@ -1,27 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getEquipment, createEquipmentItem } from '../services/api';
+import { getEquipment, createEquipmentItem, deleteEquipmentItem } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function EquipmentList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ equipment_name: '', equipment_type: '', serial_number: '', location: '', last_calibration: '', next_calibration: '', calibrated_by: '', manufacturer: '', model: '', maintenance_notes: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
 
-  const fetchData = async () => {
+  const fetchData = async () => { setLoading(true); setLoadError('');
     try {
       const res = await getEquipment();
       const data = Array.isArray(res.data) ? res.data : [];
       setItems(data);
       setFiltered(data);
-    } catch { setItems([]); setFiltered([]); }
+    } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); }
     setLoading(false);
   };
 
@@ -54,11 +58,12 @@ function EquipmentList() {
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Equipment</button>
       </div>
 
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar">
         <input type="text" placeholder="Search by name, type, serial number..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {filtered.length === 0 ? (
+      {loadError ? null : filtered.length === 0 ? (
         <div className="empty-state"><div className="empty-icon">{'\u2699'}</div><p>No equipment found</p></div>
       ) : (
         <div className="table-wrapper">
@@ -70,7 +75,7 @@ function EquipmentList() {
             </thead>
             <tbody>
               {filtered.map(d => (
-                <tr key={d.id || d._id} onClick={() => navigate(`/equipment/${d.id || d._id}`)}>
+                <tr key={d.id || d._id} onClick={() => setDetail(d)}>
                   <td><strong>{d.equipment_name}</strong></td>
                   <td>{d.equipment_type}</td>
                   <td>{d.serial_number}</td>
@@ -124,6 +129,15 @@ function EquipmentList() {
             </form>
           </div>
         </div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/equipment/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteEquipmentItem(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

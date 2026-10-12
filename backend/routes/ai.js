@@ -78,7 +78,7 @@ Respond in JSON format with these fields:
 // POST /expiration-prediction
 router.post('/expiration-prediction', async (req, res, next) => {
   try {
-    const { inventory } = req.body;
+    const { inventory, horizon_days, priority, additional_context } = req.body;
 
     const systemPrompt = `You are an AI inventory management specialist for a blood bank. Analyze the current blood product inventory and predict expiration risks. Consider standard shelf lives: whole blood (35 days), packed RBCs (42 days), platelets (5 days), fresh frozen plasma (1 year), cryoprecipitate (1 year).
 
@@ -99,7 +99,7 @@ Respond in JSON format:
   "notes": "additional analysis"
 }`;
 
-    const userMessage = `Current inventory data:\n${JSON.stringify(inventory, null, 2)}`;
+    const userMessage = `Current inventory data:\n${JSON.stringify(inventory, null, 2)}\n\nAnalysis horizon: ${horizon_days || 7} days\nPriority: ${priority || 'expiration risk'}\nAdditional context: ${additional_context || 'none'}`;
     const aiContent = await callOpenRouter(systemPrompt, userMessage);
     const result = parseAIResponse(aiContent);
 
@@ -113,7 +113,7 @@ Respond in JSON format:
 // POST /campaign-content
 router.post('/campaign-content', async (req, res, next) => {
   try {
-    const { target_demographic, blood_type_needed, urgency, additional_context } = req.body;
+    const { target_demographic, blood_type_needed, urgency, campaign_type, additional_context } = req.body;
 
     const systemPrompt = `You are a creative marketing AI assistant specializing in blood donation recruitment campaigns. Generate compelling, empathetic, and actionable campaign content that motivates people to donate blood. Your content should be medically accurate, culturally sensitive, and emotionally resonant.
 
@@ -145,6 +145,7 @@ Respond in JSON format:
 - Target demographic: ${target_demographic || 'general public'}
 - Blood type needed: ${blood_type_needed || 'all types'}
 - Urgency level: ${urgency || 'routine'}
+- Campaign type: ${campaign_type || 'all channels'}
 - Additional context: ${additional_context || 'none'}`;
 
     const aiContent = await callOpenRouter(systemPrompt, userMessage);
@@ -160,7 +161,7 @@ Respond in JSON format:
 // POST /deferral-reengagement
 router.post('/deferral-reengagement', async (req, res, next) => {
   try {
-    const { deferral_reason, deferral_date, donor_info } = req.body;
+    const { deferral_reason, deferral_date, donor_info, outreach_channel, tone, additional_context } = req.body;
 
     const systemPrompt = `You are a compassionate AI communication specialist for a blood bank. Generate personalized re-engagement messaging for donors who were previously deferred from donating blood. Your messages should be:
 
@@ -188,6 +189,9 @@ Respond in JSON format:
     const userMessage = `Donor deferral information:
 - Deferral reason: ${deferral_reason}
 - Deferral date: ${deferral_date}
+- Preferred outreach channel: ${outreach_channel || 'email'}
+- Requested tone: ${tone || 'encouraging'}
+- Additional context: ${additional_context || 'none'}
 - Donor info: ${JSON.stringify(donor_info, null, 2)}`;
 
     const aiContent = await callOpenRouter(systemPrompt, userMessage);
@@ -203,9 +207,9 @@ Respond in JSON format:
 // POST /demand-forecast
 router.post('/demand-forecast', async (req, res, next) => {
   try {
-    const { historical_data, current_inventory } = req.body;
+    const { historical_data, current_inventory, forecast_days, service_level_target, additional_context } = req.body;
 
-    const systemPrompt = `You are an AI demand forecasting specialist for a blood bank. Analyze historical usage data and current inventory levels to forecast blood product demand by blood type for the next 30 days.
+    const systemPrompt = `You are an AI demand forecasting specialist for a blood bank. Analyze historical usage data and current inventory levels to forecast blood product demand by blood type for the next ${forecast_days || 30} days.
 
 Consider:
 - Historical usage patterns and trends (daily, weekly, seasonal)
@@ -217,7 +221,7 @@ Consider:
 
 Respond in JSON format:
 {
-  "forecast_period": "next 30 days",
+  "forecast_period": "next ${forecast_days || 30} days",
   "by_blood_type": {
     "A+": {"predicted_demand_units": N, "current_stock": N, "surplus_deficit": N, "risk_level": "low|medium|high|critical"},
     "A-": {"predicted_demand_units": N, "current_stock": N, "surplus_deficit": N, "risk_level": "..."},
@@ -236,7 +240,7 @@ Respond in JSON format:
   "notes": "additional analysis and context"
 }`;
 
-    const userMessage = `Historical usage data:\n${JSON.stringify(historical_data, null, 2)}\n\nCurrent inventory:\n${JSON.stringify(current_inventory, null, 2)}`;
+    const userMessage = `Historical usage data:\n${JSON.stringify(historical_data, null, 2)}\n\nCurrent inventory:\n${JSON.stringify(current_inventory, null, 2)}\n\nForecast horizon: ${forecast_days || 30} days\nService level target: ${service_level_target || 95}%\nAdditional context: ${additional_context || 'none'}`;
     const aiContent = await callOpenRouter(systemPrompt, userMessage);
     const result = parseAIResponse(aiContent);
 

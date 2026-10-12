@@ -1,21 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getScreenings, createScreening } from '../services/api';
+import { getScreenings, createScreening, deleteScreening } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function ScreeningList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ donor_id: '', screening_date: '', temperature: '', blood_pressure_systolic: '', blood_pressure_diastolic: '', hemoglobin: '', weight: '', pulse: '', status: 'pending', notes: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
-  const fetchData = async () => {
-    try { const res = await getScreenings(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch { setItems([]); setFiltered([]); }
+  const fetchData = async () => { setLoading(true); setLoadError('');
+    try { const res = await getScreenings(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); }
     setLoading(false);
   };
 
@@ -37,11 +41,12 @@ function ScreeningList() {
         <h1><span className="icon">{'\u{1F3E5}'}</span> Health Screening <span className="count-badge">{filtered.length}</span></h1>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Screening</button>
       </div>
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar"><input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-      {filtered.length === 0 ? <div className="empty-state"><p>No screenings found</p></div> : (
+      {loadError ? null : filtered.length === 0 ? <div className="empty-state"><p>No screenings found</p></div> : (
         <div className="table-wrapper"><table className="data-table"><thead><tr><th>ID</th><th>Donor ID</th><th>Date</th><th>Temp</th><th>BP</th><th>Hemoglobin</th><th>Status</th></tr></thead>
           <tbody>{filtered.map(d => (
-            <tr key={d.id || d._id} onClick={() => navigate(`/screening/${d.id || d._id}`)}>
+            <tr key={d.id || d._id} onClick={() => setDetail(d)}>
               <td>{d.id || d._id}</td><td>{d.donor_id}</td><td>{d.screening_date ? new Date(d.screening_date).toLocaleDateString() : '-'}</td>
               <td>{d.temperature || '-'}</td><td>{d.blood_pressure_systolic}/{d.blood_pressure_diastolic}</td><td>{d.hemoglobin || '-'}</td>
               <td><span className={`badge badge-${d.status}`}>{d.status}</span></td>
@@ -73,6 +78,15 @@ function ScreeningList() {
             <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
           </form>
         </div></div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/screening/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteScreening(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

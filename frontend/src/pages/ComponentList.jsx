@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getComponents, createComponent } from '../services/api';
+import { getComponents, createComponent, deleteComponent } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function ComponentList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ collection_id: '', component_type: '', bag_number: '', volume_ml: '', preparation_date: '', expiration_date: '', storage_temp: '', processed_by: '', status: 'available' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
-  const fetchData = async () => { try { const res = await getComponents(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch { setItems([]); setFiltered([]); } setLoading(false); };
+  const fetchData = async () => { setLoading(true); setLoadError(''); try { const res = await getComponents(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); } setLoading(false); };
 
   useEffect(() => { const q = search.toLowerCase(); setFiltered(items.filter(d => (d.component_type || '').toLowerCase().includes(q) || (d.bag_number || '').toLowerCase().includes(q))); }, [search, items]);
 
@@ -28,11 +32,12 @@ function ComponentList() {
         <h1><span className="icon">{'\u{1F9EA}'}</span> Components <span className="count-badge">{filtered.length}</span></h1>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Component</button>
       </div>
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar"><input placeholder="Search by component type, bag number..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-      {filtered.length === 0 ? <div className="empty-state"><div className="empty-icon">{'\u{1F9EA}'}</div><p>No components found</p></div> : (
+      {loadError ? null : filtered.length === 0 ? <div className="empty-state"><div className="empty-icon">{'\u{1F9EA}'}</div><p>No components found</p></div> : (
         <div className="table-wrapper"><table className="data-table"><thead><tr><th>Component Type</th><th>Bag Number</th><th>Volume (ml)</th><th>Preparation Date</th><th>Expiration Date</th><th>Status</th></tr></thead>
           <tbody>{filtered.map(d => (
-            <tr key={d.id || d._id} onClick={() => navigate(`/components/${d.id || d._id}`)}>
+            <tr key={d.id || d._id} onClick={() => setDetail(d)}>
               <td><strong>{d.component_type}</strong></td>
               <td>{d.bag_number}</td>
               <td>{d.volume_ml}</td>
@@ -73,6 +78,15 @@ function ComponentList() {
             <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Create Component</button></div>
           </form>
         </div></div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/components/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteComponent(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

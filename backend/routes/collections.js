@@ -4,14 +4,14 @@ const pool = require('../db');
 
 router.get('/', async (req, res, next) => {
   try {
-    const result = await pool.query('SELECT * FROM collections ORDER BY collection_date DESC');
+    const result = await pool.query('SELECT c.*, c.start_time::date AS collection_date, c.volume_ml AS volume_collected FROM collections c ORDER BY c.start_time DESC NULLS LAST, c.id DESC');
     res.json(result.rows);
   } catch (err) { next(err); }
 });
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const result = await pool.query('SELECT * FROM collections WHERE id = $1', [req.params.id]);
+    const result = await pool.query('SELECT c.*, c.start_time::date AS collection_date, c.volume_ml AS volume_collected FROM collections c WHERE c.id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Collection not found' });
     res.json(result.rows[0]);
   } catch (err) { next(err); }

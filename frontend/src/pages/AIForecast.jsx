@@ -1,10 +1,25 @@
+import NativeAIReport from "../components/NativeAIReport";
+import NativeAIControls from "../components/NativeAIControls";
+import useNativeAIRequest from "../components/useNativeAIRequest";
 import React, { useState, useEffect } from 'react';
 import { getInventory, getOrders, forecastDemand } from '../services/api';
 import './Pages.css';
 
 function AIForecast() {
+  const nativeAIRequest = useNativeAIRequest();
+
   const [inventory, setInventory] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [forecastOptions, setForecastOptions] = useState({
+    forecast_days: '30',
+    service_level_target: '95',
+    additional_context: ''
+  });
+  const forecastPresets = [
+    { name: 'Two-week operations', values: { forecast_days: '14', service_level_target: '95', additional_context: 'Emphasize near-term hospital orders and flag any blood type likely to fall below the operating buffer.' } },
+    { name: 'Monthly planning', values: { forecast_days: '30', service_level_target: '97', additional_context: 'Build a 30-day collection plan with blood-type targets, assumptions, and a prioritized action list.' } },
+    { name: 'Seasonal readiness', values: { forecast_days: '60', service_level_target: '98', additional_context: 'Model a conservative seasonal scenario, identify rare-type risks, and distinguish evidence from assumptions.' } }
+  ];
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
@@ -39,7 +54,7 @@ function AIForecast() {
   const handleForecast = async () => {
     setLoading(true); setError(''); setResult(null);
     try {
-      const res = await forecastDemand({ inventory, orders });
+      const res = await nativeAIRequest.run((signal) => forecastDemand({ inventory, orders, ...forecastOptions }, { signal }));
       setResult(res.data);
     } catch (err) {
       setError(err.response?.data?.error || 'AI forecast failed');
@@ -56,7 +71,15 @@ function AIForecast() {
   const summary = getInventorySummary();
 
   return (
-    <div className="page-container">
+    <NativeAIControls
+      presets={forecastPresets.map((preset) => ({
+        name: preset.name,
+        fill: () => { setForecastOptions({ ...preset.values }); return { filled: Object.keys(preset.values).length, manual: [] }; }
+      }))}
+      busy={nativeAIRequest.busy}
+      onCancel={nativeAIRequest.cancel}
+      context="Blood Bank Donation Center"
+    ><div className="page-container">
       <div className="page-header">
         <h1><span className="icon">📊</span> AI Demand Forecast</h1>
       </div>
@@ -69,6 +92,24 @@ function AIForecast() {
           <>
             <div className="ai-form-section">
               <h3>Current Data Overview</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Forecast Horizon</label>
+                  <select data-ai-field="forecast_days" value={forecastOptions.forecast_days} onChange={e => setForecastOptions({...forecastOptions, forecast_days: e.target.value})}>
+                    <option value="14">14 days</option>
+                    <option value="30">30 days</option>
+                    <option value="60">60 days</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Service Level Target (%)</label>
+                  <input data-ai-field="service_level_target" type="number" min="90" max="100" step="1" value={forecastOptions.service_level_target} onChange={e => setForecastOptions({...forecastOptions, service_level_target: e.target.value})} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Additional Context <span className="field-optional">Optional</span></label>
+                <textarea data-ai-field="additional_context" value={forecastOptions.additional_context} onChange={e => setForecastOptions({...forecastOptions, additional_context: e.target.value})} placeholder="Add known events, order assumptions, or buffer requirements..." />
+              </div>
 
               <div className="stats-grid">
                 <div className="stat-card">
@@ -124,50 +165,14 @@ function AIForecast() {
                   <h3>Demand Forecast Analysis</h3>
                 </div>
                 <div className="ai-result-content">
-                  {parseResult(result).split('\n').map((line, i) => {
-                    const trimmed = line.trim();
-                    if (!trimmed) return <br key={i} />;
-                    if (trimmed.startsWith('##') || trimmed.startsWith('**')) {
-                      return <h4 key={i} className="ai-section-title">{trimmed.replace(/[#*]/g, '').trim()}</h4>;
-                    }
-                    if (trimmed.toLowerCase().includes('shortage') || trimmed.toLowerCase().includes('critical') || trimmed.toLowerCase().includes('deficit')) {
-                      return <div key={i} className="ai-alert ai-alert-danger">{trimmed.replace(/[#*]/g, '').trim()}</div>;
-                    }
-                    if (trimmed.toLowerCase().includes('warning') || trimmed.toLowerCase().includes('low') || trimmed.toLowerCase().includes('declining')) {
-                      return <div key={i} className="ai-alert ai-alert-warning">{trimmed.replace(/[#*]/g, '').trim()}</div>;
-                    }
-                    if (trimmed.toLowerCase().includes('surplus') || trimmed.toLowerCase().includes('adequate') || trimmed.toLowerCase().includes('sufficient')) {
-                      return <div key={i} className="ai-alert ai-alert-success">{trimmed.replace(/[#*]/g, '').trim()}</div>;
-                    }
-                    if (trimmed.toLowerCase().includes('recommend') || trimmed.toLowerCase().includes('action')) {
-                      return <div key={i} className="ai-recommendation"><h4>{trimmed.replace(/[#*-•]/g, '').trim()}</h4></div>;
-                    }
-                    if (trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.startsWith('*')) {
-                      return <div key={i} className="ai-list-item">{trimmed.replace(/^[-•*]\s*/, '')}</div>;
-                    }
-                    if (/^\d+\./.test(trimmed)) {
-                      return <div key={i} className="ai-list-item ai-list-numbered">{trimmed}</div>;
-                    }
-                    if (trimmed.includes('|') && trimmed.split('|').length >= 3) {
-                      const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim());
-                      if (cells.every(c => c.match(/^[-:]+$/))) return null;
-                      return (
-                        <div key={i} className="ai-table-row">
-                          {cells.map((cell, j) => (
-                            <span key={j} className="ai-table-cell">{cell}</span>
-                          ))}
-                        </div>
-                      );
-                    }
-                    return <p key={i} className="ai-text">{trimmed}</p>;
-                  })}
+                  <NativeAIReport response={result} />
                 </div>
               </div>
             )}
           </>
         )}
       </div>
-    </div>
+    </div></NativeAIControls>
   );
 }
 

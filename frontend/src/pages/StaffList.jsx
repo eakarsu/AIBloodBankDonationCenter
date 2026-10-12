@@ -1,27 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStaff, createStaffMember } from '../services/api';
+import { getStaff, createStaffMember, deleteStaffMember } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function StaffList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', role: '', email: '', phone: '', certification_type: '', certification_number: '', certification_date: '', expiration_date: '', department: '', supervisor: '', status: 'active' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
 
-  const fetchData = async () => {
+  const fetchData = async () => { setLoading(true); setLoadError('');
     try {
       const res = await getStaff();
       const data = Array.isArray(res.data) ? res.data : [];
       setItems(data);
       setFiltered(data);
-    } catch { setItems([]); setFiltered([]); }
+    } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); }
     setLoading(false);
   };
 
@@ -55,11 +59,12 @@ function StaffList() {
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Staff</button>
       </div>
 
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar">
         <input type="text" placeholder="Search by name, role, department, certification..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {filtered.length === 0 ? (
+      {loadError ? null : filtered.length === 0 ? (
         <div className="empty-state"><div className="empty-icon">{'\uD83D\uDC64'}</div><p>No staff found</p></div>
       ) : (
         <div className="table-wrapper">
@@ -71,7 +76,7 @@ function StaffList() {
             </thead>
             <tbody>
               {filtered.map(d => (
-                <tr key={d.id || d._id} onClick={() => navigate(`/staff/${d.id || d._id}`)}>
+                <tr key={d.id || d._id} onClick={() => setDetail(d)}>
                   <td><strong>{d.name}</strong></td>
                   <td>{d.role}</td>
                   <td>{d.department}</td>
@@ -127,6 +132,15 @@ function StaffList() {
             </form>
           </div>
         </div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/staff/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteStaffMember(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

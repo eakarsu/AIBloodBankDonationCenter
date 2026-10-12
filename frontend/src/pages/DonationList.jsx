@@ -1,21 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDonations, createDonation } from '../services/api';
+import { getDonations, createDonation, deleteDonation } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function DonationList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ donor_id: '', donation_date: '', donation_type: 'Whole Blood', status: 'scheduled', center_id: '', notes: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
-  const fetchData = async () => {
-    try { const res = await getDonations(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch { setItems([]); setFiltered([]); }
+  const fetchData = async () => { setLoading(true); setLoadError('');
+    try { const res = await getDonations(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); }
     setLoading(false);
   };
 
@@ -38,11 +42,12 @@ function DonationList() {
         <h1><span className="icon">{'\u{1F4C5}'}</span> Donations <span className="count-badge">{filtered.length}</span></h1>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Donation</button>
       </div>
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar"><input placeholder="Search donations..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-      {filtered.length === 0 ? <div className="empty-state"><p>No donations found</p></div> : (
+      {loadError ? null : filtered.length === 0 ? <div className="empty-state"><p>No donations found</p></div> : (
         <div className="table-wrapper"><table className="data-table"><thead><tr><th>ID</th><th>Donor ID</th><th>Date</th><th>Type</th><th>Status</th></tr></thead>
           <tbody>{filtered.map(d => (
-            <tr key={d.id || d._id} onClick={() => navigate(`/donations/${d.id || d._id}`)}>
+            <tr key={d.id || d._id} onClick={() => setDetail(d)}>
               <td>{d.id || d._id}</td><td>{d.donor_id}</td><td>{d.donation_date ? new Date(d.donation_date).toLocaleDateString() : '-'}</td>
               <td>{d.donation_type}</td><td><span className={`badge badge-${d.status}`}>{d.status}</span></td>
             </tr>
@@ -68,6 +73,15 @@ function DonationList() {
             <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
           </form>
         </div></div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/donations/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteDonation(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

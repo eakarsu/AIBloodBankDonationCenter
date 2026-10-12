@@ -1,27 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTransportations, createTransportation } from '../services/api';
+import { getTransportations, createTransportation, deleteTransportation } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function TransportationList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ order_id: '', courier_name: '', vehicle_id: '', departure_time: '', arrival_time: '', origin: '', destination: '', temperature_log: '', status: 'pending', notes: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
 
-  const fetchData = async () => {
+  const fetchData = async () => { setLoading(true); setLoadError('');
     try {
       const res = await getTransportations();
       const data = Array.isArray(res.data) ? res.data : [];
       setItems(data);
       setFiltered(data);
-    } catch { setItems([]); setFiltered([]); }
+    } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); }
     setLoading(false);
   };
 
@@ -54,11 +58,12 @@ function TransportationList() {
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Transportation</button>
       </div>
 
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar">
         <input type="text" placeholder="Search by courier, origin, destination..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {filtered.length === 0 ? (
+      {loadError ? null : filtered.length === 0 ? (
         <div className="empty-state"><div className="empty-icon">{'\u{1F69A}'}</div><p>No transportation records found</p></div>
       ) : (
         <div className="table-wrapper">
@@ -70,7 +75,7 @@ function TransportationList() {
             </thead>
             <tbody>
               {filtered.map(d => (
-                <tr key={d.id || d._id} onClick={() => navigate(`/transportation/${d.id || d._id}`)}>
+                <tr key={d.id || d._id} onClick={() => setDetail(d)}>
                   <td><strong>{d.courier_name}</strong></td>
                   <td>{d.vehicle_id}</td>
                   <td>{d.origin}</td>
@@ -119,6 +124,15 @@ function TransportationList() {
             </form>
           </div>
         </div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/transportation/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteTransportation(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

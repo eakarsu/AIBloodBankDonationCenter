@@ -4,7 +4,7 @@ const pool = require('../db');
 
 router.get('/', async (req, res, next) => {
   try {
-    const result = await pool.query('SELECT * FROM reactions ORDER BY reaction_time DESC');
+    const result = await pool.query('SELECT * FROM reactions ORDER BY onset_time DESC NULLS LAST, id DESC');
     res.json(result.rows);
   } catch (err) { next(err); }
 });

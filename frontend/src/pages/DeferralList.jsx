@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDeferrals, createDeferral } from '../services/api';
+import { getDeferrals, createDeferral, deleteDeferral } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function DeferralList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ donor_id: '', deferral_type: 'temporary', reason: '', start_date: '', end_date: '', status: 'active', notes: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
-  const fetchData = async () => { try { const res = await getDeferrals(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch { setItems([]); setFiltered([]); } setLoading(false); };
+  const fetchData = async () => { setLoading(true); setLoadError(''); try { const res = await getDeferrals(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); } setLoading(false); };
 
   useEffect(() => { const q = search.toLowerCase(); setFiltered(items.filter(d => (d.reason || '').toLowerCase().includes(q) || (d.deferral_type || '').toLowerCase().includes(q) || String(d.donor_id || '').includes(q))); }, [search, items]);
 
@@ -28,11 +32,12 @@ function DeferralList() {
         <h1><span className="icon">{'\u26A0\uFE0F'}</span> Deferrals <span className="count-badge">{filtered.length}</span></h1>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Deferral</button>
       </div>
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar"><input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-      {filtered.length === 0 ? <div className="empty-state"><p>No deferrals found</p></div> : (
+      {loadError ? null : filtered.length === 0 ? <div className="empty-state"><p>No deferrals found</p></div> : (
         <div className="table-wrapper"><table className="data-table"><thead><tr><th>ID</th><th>Donor ID</th><th>Type</th><th>Reason</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
           <tbody>{filtered.map(d => (
-            <tr key={d.id || d._id} onClick={() => navigate(`/deferrals/${d.id || d._id}`)}>
+            <tr key={d.id || d._id} onClick={() => setDetail(d)}>
               <td>{d.id || d._id}</td><td>{d.donor_id}</td><td>{d.deferral_type}</td><td>{d.reason}</td>
               <td>{d.start_date ? new Date(d.start_date).toLocaleDateString() : '-'}</td>
               <td>{d.end_date ? new Date(d.end_date).toLocaleDateString() : '-'}</td>
@@ -57,6 +62,15 @@ function DeferralList() {
             <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
           </form>
         </div></div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/deferrals/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteDeferral(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

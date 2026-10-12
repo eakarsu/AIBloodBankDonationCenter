@@ -1,10 +1,25 @@
+import NativeAIReport from "../components/NativeAIReport";
+import NativeAIControls from "../components/NativeAIControls";
+import useNativeAIRequest from "../components/useNativeAIRequest";
 import React, { useState, useEffect } from 'react';
 import { getDeferrals, generateReengagement } from '../services/api';
 import './Pages.css';
 
 function AIReengagement() {
+  const nativeAIRequest = useNativeAIRequest();
+
   const [deferrals, setDeferrals] = useState([]);
   const [selectedDeferral, setSelectedDeferral] = useState('');
+  const [messageOptions, setMessageOptions] = useState({
+    outreach_channel: 'email',
+    tone: 'encouraging',
+    additional_context: ''
+  });
+  const reengagementPresets = [
+    { name: 'Warm email', values: { outreach_channel: 'email', tone: 'encouraging', additional_context: 'Thank the donor for their previous visit, explain that eligibility must be confirmed, and invite them to schedule online.' } },
+    { name: 'Concise SMS', values: { outreach_channel: 'sms', tone: 'informational', additional_context: 'Keep the outreach brief, include a callback option, and avoid sharing sensitive deferral details in the message.' } },
+    { name: 'Staff phone call', values: { outreach_channel: 'phone', tone: 'supportive', additional_context: 'Provide a short staff script, questions to confirm readiness, and a respectful opt-out reminder.' } }
+  ];
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingDeferrals, setLoadingDeferrals] = useState(true);
@@ -33,7 +48,7 @@ function AIReengagement() {
     if (!deferral) return;
     setLoading(true); setError(''); setResult(null);
     try {
-      const res = await generateReengagement(deferral);
+      const res = await nativeAIRequest.run((signal) => generateReengagement({ ...deferral, ...messageOptions }, { signal }));
       setResult(res.data);
     } catch (err) {
       setError(err.response?.data?.error || 'AI re-engagement generation failed');
@@ -55,7 +70,20 @@ function AIReengagement() {
   const selected = getSelectedDeferralData();
 
   return (
-    <div className="page-container">
+    <NativeAIControls
+      presets={reengagementPresets.map((preset, index) => ({
+        name: preset.name,
+        fill: () => {
+          const source = selectedDeferral || String(deferrals[Math.min(index, deferrals.length - 1)]?.id || deferrals[Math.min(index, deferrals.length - 1)]?._id || '');
+          if (source) setSelectedDeferral(source);
+          setMessageOptions({ ...preset.values });
+          return { filled: Object.keys(preset.values).length + (source ? 1 : 0), manual: source ? [] : ['Deferred Donor'] };
+        }
+      }))}
+      busy={nativeAIRequest.busy}
+      onCancel={nativeAIRequest.cancel}
+      context="Blood Bank Donation Center"
+    ><div className="page-container">
       <div className="page-header">
         <h1><span className="icon">💌</span> AI Donor Re-engagement</h1>
       </div>
@@ -70,7 +98,7 @@ function AIReengagement() {
               <h3>Select Deferred Donor</h3>
               <div className="form-group">
                 <label>Deferred Donor</label>
-                <select
+                <select data-ai-field="selectedDeferral"
                   value={selectedDeferral}
                   onChange={e => { setSelectedDeferral(e.target.value); setResult(null); }}
                 >
@@ -81,6 +109,29 @@ function AIReengagement() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Outreach Channel</label>
+                  <select data-ai-field="outreach_channel" value={messageOptions.outreach_channel} onChange={e => setMessageOptions({...messageOptions, outreach_channel: e.target.value})}>
+                    <option value="email">Email</option>
+                    <option value="sms">SMS</option>
+                    <option value="phone">Phone</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Message Tone</label>
+                  <select data-ai-field="tone" value={messageOptions.tone} onChange={e => setMessageOptions({...messageOptions, tone: e.target.value})}>
+                    <option value="encouraging">Encouraging</option>
+                    <option value="informational">Informational</option>
+                    <option value="supportive">Supportive</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Additional Context <span className="field-optional">Optional</span></label>
+                <textarea data-ai-field="additional_context" value={messageOptions.additional_context} onChange={e => setMessageOptions({...messageOptions, additional_context: e.target.value})} placeholder="Add scheduling guidance or communication constraints..." />
               </div>
 
               {selected && (
@@ -132,45 +183,14 @@ function AIReengagement() {
                   <h3>Re-engagement Plan</h3>
                 </div>
                 <div className="ai-result-content">
-                  {parseResult(result).split('\n').map((line, i) => {
-                    const trimmed = line.trim();
-                    if (!trimmed) return <br key={i} />;
-                    if (trimmed.startsWith('##') || trimmed.startsWith('**')) {
-                      return <h4 key={i} className="ai-section-title">{trimmed.replace(/[#*]/g, '').trim()}</h4>;
-                    }
-                    if (trimmed.toLowerCase().includes('subject:') || trimmed.toLowerCase().includes('subject line:')) {
-                      return (
-                        <div key={i} className="ai-preview">
-                          <div className="ai-preview-header">✉️ {trimmed}</div>
-                        </div>
-                      );
-                    }
-                    if (trimmed.toLowerCase().includes('dear') || trimmed.toLowerCase().includes('hi ') || trimmed.toLowerCase().includes('hello')) {
-                      return (
-                        <div key={i} className="ai-preview">
-                          <div className="ai-preview-header">✉️ Personalized Email</div>
-                          <div className="ai-preview-body">{trimmed}</div>
-                        </div>
-                      );
-                    }
-                    if (trimmed.toLowerCase().includes('timing') || trimmed.toLowerCase().includes('schedule') || trimmed.toLowerCase().includes('follow-up')) {
-                      return <div key={i} className="ai-recommendation"><h4>{trimmed.replace(/[#*-•]/g, '').trim()}</h4></div>;
-                    }
-                    if (trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.startsWith('*')) {
-                      return <div key={i} className="ai-list-item">{trimmed.replace(/^[-•*]\s*/, '')}</div>;
-                    }
-                    if (/^\d+\./.test(trimmed)) {
-                      return <div key={i} className="ai-list-item ai-list-numbered">{trimmed}</div>;
-                    }
-                    return <p key={i} className="ai-text">{trimmed}</p>;
-                  })}
+                  <NativeAIReport response={result} />
                 </div>
               </div>
             )}
           </>
         )}
       </div>
-    </div>
+    </div></NativeAIControls>
   );
 }
 

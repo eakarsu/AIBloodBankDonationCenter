@@ -1,9 +1,24 @@
+import NativeAIReport from "../components/NativeAIReport";
+import NativeAIControls from "../components/NativeAIControls";
+import useNativeAIRequest from "../components/useNativeAIRequest";
 import React, { useState, useEffect } from 'react';
 import { getInventory, predictExpiration } from '../services/api';
 import './Pages.css';
 
 function AIExpiration() {
+  const nativeAIRequest = useNativeAIRequest();
+
   const [inventory, setInventory] = useState([]);
+  const [analysis, setAnalysis] = useState({
+    horizon_days: '7',
+    priority: 'expiration_risk',
+    additional_context: ''
+  });
+  const expirationPresets = [
+    { name: '48-hour triage', values: { horizon_days: '2', priority: 'expiration_risk', additional_context: 'Prioritize components expiring within 48 hours and clearly separate immediate holds from transfer opportunities.' } },
+    { name: 'Weekly redistribution', values: { horizon_days: '7', priority: 'redistribution', additional_context: 'Prepare a seven-day redistribution plan that groups recommendations by blood type and component.' } },
+    { name: 'Waste prevention', values: { horizon_days: '14', priority: 'waste_prevention', additional_context: 'Review the next 14 days, quantify preventable waste, and list assumptions when usage history is incomplete.' } }
+  ];
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingInventory, setLoadingInventory] = useState(true);
@@ -37,7 +52,7 @@ function AIExpiration() {
   const handleAnalyze = async () => {
     setLoading(true); setError(''); setResult(null);
     try {
-      const res = await predictExpiration({ inventory });
+      const res = await nativeAIRequest.run((signal) => predictExpiration({ inventory, ...analysis }, { signal }));
       setResult(res.data);
     } catch (err) {
       setError(err.response?.data?.error || 'AI analysis failed');
@@ -54,7 +69,15 @@ function AIExpiration() {
   const summary = getInventorySummary();
 
   return (
-    <div className="page-container">
+    <NativeAIControls
+      presets={expirationPresets.map((preset) => ({
+        name: preset.name,
+        fill: () => { setAnalysis({ ...preset.values }); return { filled: Object.keys(preset.values).length, manual: [] }; }
+      }))}
+      busy={nativeAIRequest.busy}
+      onCancel={nativeAIRequest.cancel}
+      context="Blood Bank Donation Center"
+    ><div className="page-container">
       <div className="page-header">
         <h1><span className="icon">📅</span> AI Expiration Prediction</h1>
       </div>
@@ -67,6 +90,28 @@ function AIExpiration() {
           <>
             <div className="ai-form-section">
               <h3>Current Inventory Summary</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Analysis Horizon</label>
+                  <select data-ai-field="horizon_days" value={analysis.horizon_days} onChange={e => setAnalysis({...analysis, horizon_days: e.target.value})}>
+                    <option value="2">Next 48 hours</option>
+                    <option value="7">Next 7 days</option>
+                    <option value="14">Next 14 days</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Analysis Priority</label>
+                  <select data-ai-field="priority" value={analysis.priority} onChange={e => setAnalysis({...analysis, priority: e.target.value})}>
+                    <option value="expiration_risk">Expiration risk</option>
+                    <option value="redistribution">Redistribution</option>
+                    <option value="waste_prevention">Waste prevention</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Additional Context <span className="field-optional">Optional</span></label>
+                <textarea data-ai-field="additional_context" value={analysis.additional_context} onChange={e => setAnalysis({...analysis, additional_context: e.target.value})} placeholder="Add usage constraints or planning assumptions..." />
+              </div>
               {Object.keys(summary).length > 0 ? (
                 <div className="table-wrapper" style={{ marginBottom: '20px' }}>
                   <table className="data-table">
@@ -119,36 +164,14 @@ function AIExpiration() {
                   <h3>Expiration Analysis</h3>
                 </div>
                 <div className="ai-result-content">
-                  {parseResult(result).split('\n').map((line, i) => {
-                    const trimmed = line.trim();
-                    if (!trimmed) return <br key={i} />;
-                    if (trimmed.startsWith('##') || trimmed.startsWith('**')) {
-                      return <h4 key={i} className="ai-section-title">{trimmed.replace(/[#*]/g, '').trim()}</h4>;
-                    }
-                    if (trimmed.toLowerCase().includes('critical') || trimmed.toLowerCase().includes('expiring') || trimmed.toLowerCase().includes('expired')) {
-                      return <div key={i} className="ai-alert ai-alert-danger">{trimmed}</div>;
-                    }
-                    if (trimmed.toLowerCase().includes('warning') || trimmed.toLowerCase().includes('soon') || trimmed.toLowerCase().includes('caution')) {
-                      return <div key={i} className="ai-alert ai-alert-warning">{trimmed}</div>;
-                    }
-                    if (trimmed.toLowerCase().includes('safe') || trimmed.toLowerCase().includes('good') || trimmed.toLowerCase().includes('sufficient')) {
-                      return <div key={i} className="ai-alert ai-alert-success">{trimmed}</div>;
-                    }
-                    if (trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.startsWith('*')) {
-                      return <div key={i} className="ai-list-item">{trimmed.replace(/^[-•*]\s*/, '')}</div>;
-                    }
-                    if (/^\d+\./.test(trimmed)) {
-                      return <div key={i} className="ai-list-item ai-list-numbered">{trimmed}</div>;
-                    }
-                    return <p key={i} className="ai-text">{trimmed}</p>;
-                  })}
+                  <NativeAIReport response={result} />
                 </div>
               </div>
             )}
           </>
         )}
       </div>
-    </div>
+    </div></NativeAIControls>
   );
 }
 

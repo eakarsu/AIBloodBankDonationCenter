@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getBloodTypings, createBloodTyping } from '../services/api';
+import { getBloodTypings, createBloodTyping, deleteBloodTyping } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function BloodTypingList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ donation_id: '', abo_type: '', rh_factor: '', antibody_screen: '', crossmatch_result: '', hiv_test: 'negative', hbv_test: 'negative', hcv_test: 'negative', syphilis_test: 'negative', testing_date: '', technician_id: '', status: 'pending', notes: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
-  const fetchData = async () => { try { const res = await getBloodTypings(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch { setItems([]); setFiltered([]); } setLoading(false); };
+  const fetchData = async () => { setLoading(true); setLoadError(''); try { const res = await getBloodTypings(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); } setLoading(false); };
 
   useEffect(() => { const q = search.toLowerCase(); setFiltered(items.filter(d => (d.abo_type || '').toLowerCase().includes(q) || (d.rh_factor || '').toLowerCase().includes(q) || String(d.donation_id || '').includes(q))); }, [search, items]);
 
@@ -28,11 +32,12 @@ function BloodTypingList() {
         <h1><span className="icon">{'\u{1F52C}'}</span> Blood Typing & Testing <span className="count-badge">{filtered.length}</span></h1>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Test</button>
       </div>
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar"><input placeholder="Search by blood type..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-      {filtered.length === 0 ? <div className="empty-state"><p>No tests found</p></div> : (
+      {loadError ? null : filtered.length === 0 ? <div className="empty-state"><p>No tests found</p></div> : (
         <div className="table-wrapper"><table className="data-table"><thead><tr><th>ID</th><th>Donation ID</th><th>ABO</th><th>Rh</th><th>HIV</th><th>HBV</th><th>HCV</th><th>Date</th><th>Status</th></tr></thead>
           <tbody>{filtered.map(d => (
-            <tr key={d.id || d._id} onClick={() => navigate(`/bloodtyping/${d.id || d._id}`)}>
+            <tr key={d.id || d._id} onClick={() => setDetail(d)}>
               <td>{d.id || d._id}</td><td>{d.donation_id}</td><td><strong>{d.abo_type}</strong></td><td>{d.rh_factor}</td>
               <td><span className={`badge badge-${d.hiv_test === 'negative' ? 'positive' : 'negative'}`}>{d.hiv_test}</span></td>
               <td><span className={`badge badge-${d.hbv_test === 'negative' ? 'positive' : 'negative'}`}>{d.hbv_test}</span></td>
@@ -66,6 +71,15 @@ function BloodTypingList() {
             <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
           </form>
         </div></div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/bloodtyping/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteBloodTyping(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

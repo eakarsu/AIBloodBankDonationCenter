@@ -1,27 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getRewards, createReward } from '../services/api';
+import { getRewards, createReward, deleteReward } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function RewardList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ donor_id: '', reward_type: '', points: '', milestone: '', description: '', earned_date: '', status: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
 
-  const fetchData = async () => {
+  const fetchData = async () => { setLoading(true); setLoadError('');
     try {
       const res = await getRewards();
       const data = Array.isArray(res.data) ? res.data : [];
       setItems(data);
       setFiltered(data);
-    } catch { setItems([]); setFiltered([]); }
+    } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); }
     setLoading(false);
   };
 
@@ -53,11 +57,12 @@ function RewardList() {
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Reward</button>
       </div>
 
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar">
         <input type="text" placeholder="Search by reward type, milestone..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {filtered.length === 0 ? (
+      {loadError ? null : filtered.length === 0 ? (
         <div className="empty-state"><div className="empty-icon">{'\uD83C\uDFC6'}</div><p>No rewards found</p></div>
       ) : (
         <div className="table-wrapper">
@@ -69,7 +74,7 @@ function RewardList() {
             </thead>
             <tbody>
               {filtered.map(d => (
-                <tr key={d.id || d._id} onClick={() => navigate(`/rewards/${d.id || d._id}`)}>
+                <tr key={d.id || d._id} onClick={() => setDetail(d)}>
                   <td>{d.donor_id}</td>
                   <td><strong>{d.reward_type}</strong></td>
                   <td>{d.points}</td>
@@ -115,6 +120,15 @@ function RewardList() {
             </form>
           </div>
         </div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/rewards/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteReward(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

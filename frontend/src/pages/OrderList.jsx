@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getOrders, createOrder } from '../services/api';
+import { getOrders, createOrder, deleteOrder } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function OrderList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ hospital_name: '', hospital_contact: '', blood_type: '', rh_factor: '', product_type: '', units_requested: '', priority: 'routine', needed_by: '', notes: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
-  const fetchData = async () => { try { const res = await getOrders(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch { setItems([]); setFiltered([]); } setLoading(false); };
+  const fetchData = async () => { setLoading(true); setLoadError(''); try { const res = await getOrders(); const d = Array.isArray(res.data) ? res.data : []; setItems(d); setFiltered(d); } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); } setLoading(false); };
 
   useEffect(() => { const q = search.toLowerCase(); setFiltered(items.filter(d => (d.hospital_name || '').toLowerCase().includes(q) || (d.blood_type || '').toLowerCase().includes(q))); }, [search, items]);
 
@@ -33,11 +37,12 @@ function OrderList() {
         <h1><span className="icon">{'\u{1F4CB}'}</span> Orders <span className="count-badge">{filtered.length}</span></h1>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Order</button>
       </div>
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar"><input placeholder="Search by hospital, blood type..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-      {filtered.length === 0 ? <div className="empty-state"><div className="empty-icon">{'\u{1F4CB}'}</div><p>No orders found</p></div> : (
+      {loadError ? null : filtered.length === 0 ? <div className="empty-state"><div className="empty-icon">{'\u{1F4CB}'}</div><p>No orders found</p></div> : (
         <div className="table-wrapper"><table className="data-table"><thead><tr><th>Hospital</th><th>Blood Type</th><th>Product Type</th><th>Units Requested</th><th>Units Fulfilled</th><th>Priority</th><th>Status</th></tr></thead>
           <tbody>{filtered.map(d => (
-            <tr key={d.id || d._id} onClick={() => navigate(`/orders/${d.id || d._id}`)}>
+            <tr key={d.id || d._id} onClick={() => setDetail(d)}>
               <td><strong>{d.hospital_name}</strong></td>
               <td><span className="badge badge-active">{d.blood_type}</span></td>
               <td>{d.product_type}</td>
@@ -87,6 +92,15 @@ function OrderList() {
             <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Create Order</button></div>
           </form>
         </div></div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/orders/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteOrder(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );

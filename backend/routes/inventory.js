@@ -12,7 +12,7 @@ router.get('/', async (req, res, next) => {
 router.get('/summary', async (req, res, next) => {
   try {
     const result = await pool.query(
-      "SELECT blood_type, component_type, COUNT(*) as units, MIN(expiration_date) as earliest_expiry FROM inventory WHERE status = 'available' GROUP BY blood_type, component_type ORDER BY blood_type"
+      "SELECT blood_type, rh_factor, product_type AS component_type, SUM(units_available) AS units, MIN(expiration_date) AS earliest_expiry FROM inventory WHERE status = 'available' GROUP BY blood_type, rh_factor, product_type ORDER BY blood_type, rh_factor, product_type"
     );
     res.json(result.rows);
   } catch (err) { next(err); }

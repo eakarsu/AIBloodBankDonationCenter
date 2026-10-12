@@ -1,23 +1,30 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../services/api';
 import './Pages.css';
 
 function Login() {
+  const demoLoginLock = useRef(false);
+  const [demoLoginBusy, setDemoLoginBusy] = useState(false);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const performLogin = async (credentials) => {
+    const res = await login(credentials.email, credentials.password);
+    localStorage.setItem('token', res.data.token);
+    navigate('/dashboard');
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const res = await login(email, password);
-      localStorage.setItem('token', res.data.token);
-      navigate('/dashboard');
+      await performLogin({ email, password });
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
     } finally {
@@ -25,16 +32,24 @@ function Login() {
     }
   };
 
-  const handleQuickLogin = async () => {
+  const handleDemoLogin = async () => {
+    if (demoLoginLock.current) return;
+    demoLoginLock.current = true;
+    setDemoLoginBusy(true);
     setError('');
     try {
       const response = await fetch('/api/auth/demo-credentials', { cache: 'no-store' });
       if (!response.ok) throw new Error('Demo credentials are unavailable');
       const credentials = await response.json();
-      setEmail(credentials.email || '');
-      setPassword(credentials.password || '');
+      if (!credentials.email || !credentials.password) throw new Error('Demo credentials are unavailable');
+      setEmail(credentials.email);
+      setPassword(credentials.password);
+      await performLogin(credentials);
     } catch (err) {
-      setError(err.message || 'Demo credentials are unavailable');
+      setError(err.response?.data?.error || err.message || 'Demo login failed. Please try again.');
+    } finally {
+      demoLoginLock.current = false;
+      setDemoLoginBusy(false);
     }
   };
 
@@ -72,8 +87,8 @@ function Login() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        <button className="btn btn-quick" onClick={handleQuickLogin} disabled={loading}>
-          Auto Fill Demo Credentials
+        <button type="button" className="btn btn-quick" onClick={handleDemoLogin} disabled={demoLoginBusy || loading}>
+          {demoLoginBusy ? 'Signing in as Demo...' : 'Log In as Demo'}
         </button>
       </div>
     </div>

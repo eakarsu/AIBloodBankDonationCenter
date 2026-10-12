@@ -1,27 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getReactions, createReaction } from '../services/api';
+import { getReactions, createReaction, deleteReaction } from '../services/api';
 import './Pages.css';
+import NativeRecordLoadNotice from '../components/NativeRecordLoadNotice';
+import RecordDialog from '../components/RecordDialog';
 
 function ReactionList() {
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ donor_id: '', collection_id: '', reaction_type: '', severity: '', symptoms: '', onset_time: '', treatment: '', outcome: '', reported_by: '', follow_up_required: false, notes: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
 
-  const fetchData = async () => {
+  const fetchData = async () => { setLoading(true); setLoadError('');
     try {
       const res = await getReactions();
       const data = Array.isArray(res.data) ? res.data : [];
       setItems(data);
       setFiltered(data);
-    } catch { setItems([]); setFiltered([]); }
+    } catch (err) { setLoadError(err.response?.data?.error || err.message || 'Could not load records. Try again.'); setItems([]); setFiltered([]); }
     setLoading(false);
   };
 
@@ -59,11 +63,12 @@ function ReactionList() {
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Reaction</button>
       </div>
 
+      <NativeRecordLoadNotice error={loadError} onRetry={fetchData} />
       <div className="search-bar">
         <input type="text" placeholder="Search by reaction type, severity..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {filtered.length === 0 ? (
+      {loadError ? null : filtered.length === 0 ? (
         <div className="empty-state"><div className="empty-icon">{'\u26A0\uFE0F'}</div><p>No reactions found</p></div>
       ) : (
         <div className="table-wrapper">
@@ -75,7 +80,7 @@ function ReactionList() {
             </thead>
             <tbody>
               {filtered.map(d => (
-                <tr key={d.id || d._id} onClick={() => navigate(`/reactions/${d.id || d._id}`)}>
+                <tr key={d.id || d._id} onClick={() => setDetail(d)}>
                   <td><strong>{d.donor_id}</strong></td>
                   <td>{d.reaction_type}</td>
                   <td>{severityBadge(d.severity)}</td>
@@ -139,6 +144,15 @@ function ReactionList() {
             </form>
           </div>
         </div>
+      )}
+      {detail && (
+        <RecordDialog
+          item={detail}
+          title="Record details"
+          onClose={() => setDetail(null)}
+          onEdit={(row) => navigate(`/reactions/${row.id || row._id}`)}
+          onDelete={async (row) => { try { await deleteReaction(row.id || row._id); } catch (e) { /* surface nothing */ } setDetail(null); fetchData(); }}
+        />
       )}
     </div>
   );
